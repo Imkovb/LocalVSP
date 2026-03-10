@@ -1,4 +1,0 @@
-services:
-  hello-nodejs:
-    build: .
-    restart: unless-stopped

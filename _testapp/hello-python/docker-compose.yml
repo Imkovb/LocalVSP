@@ -1,4 +1,0 @@
-services:
-  hello-python:
-    build: .
-    restart: unless-stopped

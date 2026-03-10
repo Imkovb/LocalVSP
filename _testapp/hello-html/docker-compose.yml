@@ -1,5 +1,0 @@
-services:
-  hello-html:
-    build: .
-    ports:
-      - "8080:80"
