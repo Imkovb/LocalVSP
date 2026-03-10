@@ -1,0 +1,5 @@
+{
+  "name": "localvsp/hello-php",
+  "description": "Hello PHP test app for Local VSP",
+  "require": {}
+}
