@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hello HTML</title>
+  <style>
+    body { background: #0f172a; color: #e2e8f0; font-family: monospace;
+           display: flex; align-items: center; justify-content: center;
+           height: 100vh; margin: 0; }
+    .box { text-align: center; }
+    h1 { font-size: 3rem; color: #fb923c; margin-bottom: 0.5rem; }
+    p  { color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>&#9632; Hello, HTML!</h1>
+    <p>Running on Local VSP &mdash; static HTML served by nginx</p>
+    <p style="margin-top:1rem;font-size:0.75rem;color:#475569">
+      hostname: <span id="host"></span> &nbsp;|&nbsp; uptime: <span id="uptime">0</span>s
+    </p>
+  </div>
+  <script>
+    document.getElementById('host').textContent = location.hostname;
+    var start = Date.now();
+    setInterval(function() {
+      document.getElementById('uptime').textContent = Math.floor((Date.now() - start) / 1000);
+    }, 1000);
+  </script>
+</body>
+</html>

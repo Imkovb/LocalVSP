@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="{{ .Lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ index .T "logs.title" }} — {{.AppName}} — Local VSP</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/vsp-ui.css">
+</head>
+<body class="vsp-shell bg-gray-950 text-gray-200 font-mono min-h-screen">
+{{template "icons" .}}
+    <!-- Navbar -->
+    <nav class="bg-gray-900 border-b border-gray-700 px-6 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <a href="/" class="text-gray-400 hover:text-white text-sm flex items-center gap-1"><svg class="w-3.5 h-3.5" aria-hidden="true"><use href="#icon-back"/></svg>{{ index .T "logs.back" }}</a>
+            <span class="text-gray-600">/</span>
+            <span class="text-green-400 font-bold flex items-center gap-2"><svg class="w-3.5 h-3.5" aria-hidden="true"><use href="#icon-terminal"/></svg>{{ index .T "logs.title" }}: {{.AppName}}</span>
+        </div>
+        <div class="flex items-center gap-4 text-sm flex-wrap">
+            <!-- Tail lines selector -->
+            <label class="text-gray-500">{{ index .T "logs.lines.label" }}</label>
+            <select id="lines-select"
+                    class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-green-500"
+                    onchange="updateLogs()">
+                <option value="50">50</option>
+                <option value="100" selected>100</option>
+                <option value="200">200</option>
+                <option value="500">500</option>
+            </select>
+
+            <!-- Auto-refresh toggle -->
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="auto-refresh" checked class="rounded">
+                <span class="text-gray-400">{{ index .T "logs.autorefresh" }}</span>
+            </label>
+
+            <!-- Language picker -->
+            <div class="flex items-center gap-1 border-l border-gray-700 pl-4">
+                {{ range .Langs }}
+                <a href="?lang={{ . }}&app={{ $.AppName }}"
+                   class="px-2 py-0.5 rounded text-xs font-bold transition-colors {{ if eq . $.Lang }}bg-green-700 text-white{{ else }}text-gray-400 hover:text-white hover:bg-gray-700{{ end }}">
+                    {{ index $.LangFlag . }} {{ index $.LangName . }}
+                </a>
+                {{ end }}
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-full px-6 py-6">
+
+        <!-- Log viewer -->
+        <div class="bg-gray-900 border border-gray-700 rounded overflow-hidden">
+            <div class="flex items-center justify-between bg-gray-800 px-4 py-2 border-b border-gray-700">
+                <span class="text-xs text-gray-400">{{ index .T "logs.output" }} — {{.AppName}}</span>
+                <button onclick="updateLogs()"
+                        class="text-xs text-gray-400 hover:text-white border border-gray-600 rounded px-2 py-0.5 hover:border-gray-400">
+                    {{ index .T "btn.refresh" }}
+                </button>
+            </div>
+
+            <div id="log-output"
+                 class="overflow-auto h-[70vh] p-4 bg-gray-950"
+                 hx-get="/api/logs?app={{.AppName}}&lines=100"
+                 hx-trigger="load, every 5s [document.getElementById('auto-refresh').checked]"
+                 hx-swap="innerHTML"
+                 hx-on::after-request="scrollToBottom()">
+                <p class="text-gray-500 text-xs">{{ index .T "logs.loading" }}</p>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        function scrollToBottom() {
+            const el = document.getElementById('log-output');
+            el.scrollTop = el.scrollHeight;
+        }
+
+        function updateLogs() {
+            const lines = document.getElementById('lines-select').value;
+            const app = "{{.AppName}}";
+            const el = document.getElementById('log-output');
+            htmx.ajax('GET', `/api/logs?app=${app}&lines=${lines}`, {
+                target: '#log-output',
+                swap: 'innerHTML'
+            });
+        }
+    </script>
+
+</body>
+</html>

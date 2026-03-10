@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="{{ .Lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ index .T "nav.settings" }} — Local VSP</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/vsp-ui.css">
+</head>
+<body class="vsp-shell bg-slate-950 text-slate-100 font-mono min-h-screen">
+{{template "icons" .}}
+    <nav class="border-b border-slate-800 bg-slate-950/85 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-slate-950/70">
+        <div class="mx-auto flex max-w-7xl items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+            <span class="flex items-center gap-2 text-xl font-bold text-emerald-400"><svg class="w-5 h-5" aria-hidden="true"><use href="#icon-server"/></svg>{{ index .T "nav.brand" }}</span>
+        </div>
+        <div class="flex items-center gap-6 text-sm flex-wrap">
+            <a href="/" class="flex items-center gap-1 text-slate-400 hover:text-white"><svg class="w-3.5 h-3.5" aria-hidden="true"><use href="#icon-home"/></svg>{{ index .T "nav.dashboard" }}</a>
+            <a href="/settings" class="flex items-center gap-1 font-semibold text-emerald-400"><svg class="w-3.5 h-3.5" aria-hidden="true"><use href="#icon-settings"/></svg>{{ index .T "nav.settings" }}</a>
+            <a href="/help" class="flex items-center gap-1 text-slate-400 hover:text-white">
+                <svg class="w-3.5 h-3.5" aria-hidden="true"><use href="#icon-help"/></svg>
+                {{ index .T "nav.help" }}
+            </a>
+            <a href="http://{{.Host}}:3000" target="_blank" class="flex items-center gap-1 text-slate-400 hover:text-white" id="gitea-link"><svg class="w-3.5 h-3.5" aria-hidden="true"><use href="#icon-git"/></svg>{{ index .T "nav.gitea" }}</a>
+            <div class="flex items-center gap-1 border-l border-slate-800 pl-4">
+                {{ range .Langs }}
+                <a href="?lang={{ . }}"
+                   class="rounded px-2 py-0.5 text-xs font-bold transition-colors {{ if eq . $.Lang }}bg-emerald-700 text-white{{ else }}text-slate-400 hover:bg-slate-800 hover:text-white{{ end }}">
+                    {{ index $.LangFlag . }} {{ index $.LangName . }}
+                </a>
+                {{ end }}
+            </div>
+        </div>
+        </div>
+    </nav>
+
+    <main class="page-main">
+
+        <section class="page-hero bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.96),rgba(2,6,23,0.96))]">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div class="max-w-3xl space-y-3">
+                    <span class="inline-flex items-center gap-2 rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-sky-300">{{ index .T "settings.hero.badge" }}</span>
+                    <h1 class="page-hero-title">{{ index .T "settings.hero.title" }}</h1>
+                    <p class="page-hero-body max-w-2xl">{{ index .T "settings.hero.body" }}</p>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2 lg:w-[26rem]">
+                    <div class="page-hero-stat">
+                        <p class="page-hero-stat-label">{{ index .T "settings.summary.domain.label" }}</p>
+                        <p class="page-hero-stat-value">{{if .Domain}}{{.Domain}}{{else}}{{ index .T "settings.summary.domain.empty" }}{{end}}</p>
+                    </div>
+                    <div class="page-hero-stat">
+                        <p class="page-hero-stat-label">{{ index .T "settings.summary.token.label" }}</p>
+                        <p class="page-hero-stat-value {{if .CFToken}}text-emerald-300{{else}}text-amber-300{{end}}">{{if .CFToken}}{{ index .T "settings.summary.token.present" }}{{else}}{{ index .T "settings.summary.token.missing" }}{{end}}</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Infrastructure ─────────────────────────────────── -->
+        <div class="panel-shell">
+            <div class="panel-header-row border-b border-slate-800 px-6 py-5">
+                <div>
+                    <div class="panel-heading">
+                        <h2 class="panel-title flex items-center gap-2"><svg class="w-5 h-5 text-slate-400" aria-hidden="true"><use href="#icon-server"/></svg>{{ index .T "settings.infra.title" }}</h2>
+                        <button onclick="openHelp('infra')" class="help-btn" title="{{ index .T "shared.help.title" }}">?</button>
+                    </div>
+                    <p class="panel-subtitle mt-1">{{ index .T "settings.infra.desc" }}</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span id="infra-spinner" class="htmx-indicator flex items-center gap-1 text-xs text-emerald-400">
+                        <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>{{ index .T "lbl.working" }}
+                    </span>
+                    <button hx-get="/api/infra"
+                            hx-target="#infra-rows"
+                            hx-swap="innerHTML"
+                            hx-indicator="#infra-spinner"
+                            class="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300 transition-colors hover:border-slate-500 hover:text-white">
+                        {{ index .T "btn.refresh" }}
+                    </button>
+                </div>
+            </div>
+
+            <div id="infra-action-result" class="px-6 pt-3"></div>
+
+            <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="border-b border-slate-800 text-[11px] uppercase tracking-[0.24em] text-slate-500">
+                    <tr>
+                        <th class="px-5 py-2 text-left">{{ index .T "settings.infra.col.service" }}</th>
+                        <th class="px-5 py-2 text-left">{{ index .T "lbl.status" }}</th>
+                        <th class="px-5 py-2 text-left">{{ index .T "lbl.actions" }}</th>
+                        <th class="px-5 py-2 text-left">{{ index .T "settings.infra.col.version" }}</th>
+                        <th class="px-5 py-2 text-left">{{ index .T "settings.infra.col.port" }}</th>
+                    </tr>
+                </thead>
+                <tbody id="infra-rows"
+                       hx-get="/api/infra"
+                       hx-trigger="load"
+                       hx-swap="innerHTML">
+                    <tr>
+                        <td colspan="5" class="px-5 py-6 text-center text-sm text-slate-500">{{ index .T "lbl.loading" }}</td>
+                    </tr>
+                </tbody>
+            </table>
+            </div>
+        </div>
+
+        <!-- ── Platform Settings ─────────────────────────────── -->
+        <div class="panel-shell">
+            <div class="panel-header">
+                <div class="panel-heading">
+                    <h2 class="panel-title flex items-center gap-2"><svg class="w-5 h-5 text-slate-400" aria-hidden="true"><use href="#icon-settings"/></svg>{{ index .T "settings.platform.title" }}</h2>
+                    <button onclick="openHelp('platform')" class="help-btn" title="{{ index .T "shared.help.title" }}">?</button>
+                </div>
+                <p class="panel-subtitle">{{ index .T "settings.platform.desc" }}</p>
+            </div>
+
+            <div class="px-6 py-6 space-y-6">
+                <div id="settings-result"></div>
+
+                <form hx-post="/settings/save"
+                      hx-target="#settings-result"
+                      hx-swap="innerHTML"
+                      class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+
+                    <div class="space-y-4">
+                    <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-5 space-y-4">
+                        <h3 class="text-sm font-bold uppercase tracking-[0.24em] text-slate-400">{{ index .T "settings.cf.title" }}</h3>
+                        <div class="space-y-2">
+                            <label class="block text-sm text-slate-300" for="cf_token">{{ index .T "settings.cf.token.label" }}</label>
+                            <input type="password"
+                                   id="cf_token"
+                                   name="cf_token"
+                                   value="{{.CFToken}}"
+                                   placeholder="eyJ..."
+                                   class="w-full rounded-2xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-mono text-white placeholder-slate-600 focus:border-emerald-500 focus:outline-none">
+                            <p class="text-xs text-slate-500">
+                                <a href="https://one.dash.cloudflare.com/" target="_blank" class="text-blue-400 hover:underline">one.dash.cloudflare.com</a>
+                                {{ index .T "settings.cf.token.hint" }}
+                            </p>
+                            <label class="flex items-center gap-2 text-xs text-slate-400">
+                                <input type="checkbox" name="clear_cf_token" value="true" class="rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500">
+                                {{ index .T "settings.cf.clear" }}
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-5 space-y-4">
+                        <h3 class="text-sm font-bold uppercase tracking-[0.24em] text-slate-400">{{ index .T "settings.domain.title" }}</h3>
+                        <div class="space-y-2">
+                            <label class="block text-sm text-slate-300" for="domain">{{ index .T "settings.domain.label" }}</label>
+                            <input type="text"
+                                   id="domain"
+                                   name="domain"
+                                   value="{{.Domain}}"
+                                   placeholder="yourdomain.com"
+                                   class="w-full rounded-2xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-emerald-500 focus:outline-none">
+                            <p class="text-xs text-slate-500">
+                                {{ index .T "settings.domain.hint" }} <code class="text-green-400">&lt;app&gt;.{{.Domain}}</code>
+                            </p>
+                            <label class="flex items-center gap-2 text-xs text-slate-400">
+                                <input type="checkbox" name="clear_domain" value="true" class="rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500">
+                                {{ index .T "settings.domain.clear" }}
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button type="submit"
+                                class="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/15 px-6 py-2 text-sm font-bold text-white transition-colors hover:bg-emerald-500/25">
+                            <svg class="w-4 h-4" aria-hidden="true"><use href="#icon-check"/></svg>{{ index .T "btn.save" }}
+                        </button>
+                    </div>
+                    </div>
+
+                    <aside class="rounded-2xl border border-slate-800 bg-slate-950/70 p-5 space-y-4">
+                        <div>
+                            <h3 class="text-sm font-bold uppercase tracking-[0.24em] text-slate-400">{{ index .T "settings.effects.title" }}</h3>
+                            <p class="mt-2 text-sm text-slate-300">{{ index .T "settings.effects.body" }}</p>
+                        </div>
+                        <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs text-slate-400 space-y-2">
+                            <div>{{ index .T "settings.effects.local" }}</div>
+                            <div>{{ index .T "settings.effects.domain" }}</div>
+                            <div>{{ index .T "settings.effects.tunnel" }}</div>
+                        </div>
+                    </aside>
+                </form>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="notification-stack" class="notification-stack" aria-live="polite" aria-atomic="false"></div>
+
+    <div id="confirm-modal" class="confirm-overlay" onclick="if(event.target===this) confirmUi.cancel()">
+        <div id="confirm-dialog" class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-modal-title" aria-describedby="confirm-modal-message">
+            <div class="confirm-dialog-header">
+                <span class="confirm-dialog-icon" aria-hidden="true">
+                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v4.5a.75.75 0 001.5 0v-4.5zm0 7.5a.75.75 0 00-1.5 0v.5a.75.75 0 001.5 0v-.5z" clip-rule="evenodd"/></svg>
+                </span>
+                <div class="min-w-0">
+                    <div id="confirm-modal-title" class="confirm-dialog-title"></div>
+                </div>
+            </div>
+            <div id="confirm-modal-message" class="confirm-dialog-copy"></div>
+            <div id="confirm-match-wrap" class="hidden px-4 pb-4">
+                <label for="confirm-match-input" class="block text-xs font-bold uppercase tracking-[0.2em] text-slate-400">{{ index .T "notify.confirm.type_label" }}</label>
+                <p class="mt-2 text-xs leading-6 text-slate-400">{{ index .T "notify.confirm.type_hint" }} <span id="confirm-match-name" class="font-mono text-slate-200"></span>.</p>
+                <input id="confirm-match-input" type="text" autocomplete="off" spellcheck="false" class="mt-3 w-full rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-red-400 focus:outline-none" placeholder="{{ index .T "notify.confirm.type_placeholder" }}">
+            </div>
+            <div class="confirm-dialog-actions">
+                <button type="button" id="confirm-cancel-btn" class="btn-dialog btn-dialog-secondary"></button>
+                <button type="button" id="confirm-ok-btn" class="btn-dialog btn-dialog-primary"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="help-modal" style="display:none"
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+         onclick="if(event.target===this) closeHelp()">
+        <div class="help-modal-shell">
+            <div class="help-modal-header">
+                <span id="help-modal-title" class="help-modal-title"></span>
+                <div class="flex items-center gap-3">
+                    <a id="help-modal-more" href="/help" class="text-xs text-blue-400 hover:underline">→ {{ index .T "shared.help.more" }}</a>
+                    <button onclick="closeHelp()" class="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
+                </div>
+            </div>
+            <div id="help-modal-body" class="help-modal-body prose-help"></div>
+        </div>
+    </div>
+    <!-- Hidden help content -->
+    <div style="display:none">
+        <div id="hc-infra">{{ index .T "settings.infra.help.body" | helpHTML }}</div>
+        <div id="hc-infra-title">{{ index .T "settings.infra.help.title" }}</div>
+        <div id="hc-platform">{{ index .T "settings.platform.help.body" | helpHTML }}</div>
+        <div id="hc-platform-title">{{ index .T "settings.platform.help.title" }}</div>
+    </div>
+    <script>
+    function openHelp(key) {
+        var modal=document.getElementById('help-modal'), title=document.getElementById('help-modal-title'),
+            body=document.getElementById('help-modal-body'), more=document.getElementById('help-modal-more');
+        var tc=document.getElementById('hc-'+key+'-title'), bc=document.getElementById('hc-'+key);
+        title.textContent=tc?tc.textContent:''; body.innerHTML=bc?bc.innerHTML:'';
+        more.href='/help#settings'; modal.style.display=''; document.body.style.overflow='hidden';
+    }
+    function closeHelp(){
+        document.getElementById('help-modal').style.display='none'; document.body.style.overflow='';
+    }
+
+    function dismissToast(toast) {
+        if (!toast || toast.dataset.closing === 'true') return;
+        toast.dataset.closing = 'true';
+        toast.classList.add('is-closing');
+        setTimeout(function() {
+            if (toast && toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 180);
+    }
+
+    function bindNotificationToasts(root) {
+        root.querySelectorAll('[data-notify-toast]').forEach(function(toast) {
+            if (toast.dataset.bound === 'true') return;
+            toast.dataset.bound = 'true';
+            var timeout = window.setTimeout(function() { dismissToast(toast); }, 4800);
+            toast.addEventListener('mouseenter', function() { window.clearTimeout(timeout); });
+            toast.addEventListener('mouseleave', function() {
+                timeout = window.setTimeout(function() { dismissToast(toast); }, 2200);
+            });
+        });
+    }
+
+    document.body.addEventListener('click', function(e) {
+        var closeBtn = e.target.closest('[data-notify-close]');
+        if (!closeBtn) return;
+        dismissToast(closeBtn.closest('[data-notify-toast]'));
+    });
+
+    var confirmUi = (function() {
+        var modal = document.getElementById('confirm-modal');
+        var dialog = document.getElementById('confirm-dialog');
+        var title = document.getElementById('confirm-modal-title');
+        var message = document.getElementById('confirm-modal-message');
+        var matchWrap = document.getElementById('confirm-match-wrap');
+        var matchName = document.getElementById('confirm-match-name');
+        var matchInput = document.getElementById('confirm-match-input');
+        var confirmBtn = document.getElementById('confirm-ok-btn');
+        var cancelBtn = document.getElementById('confirm-cancel-btn');
+        var resolver = null;
+        var currentMatchValue = '';
+
+        function updateConfirmState() {
+            if (!currentMatchValue) {
+                confirmBtn.disabled = false;
+                return;
+            }
+            confirmBtn.disabled = matchInput.value !== currentMatchValue;
+        }
+
+        function close(result) {
+            if (!resolver) return;
+            var resolve = resolver;
+            resolver = null;
+            var typedValue = matchInput.value;
+            modal.classList.remove('is-open');
+            dialog.classList.remove('is-danger');
+            matchWrap.classList.add('hidden');
+            matchInput.value = '';
+            currentMatchValue = '';
+            confirmBtn.disabled = false;
+            resolve(result ? { confirmed: true, typedValue: typedValue } : { confirmed: false, typedValue: '' });
+        }
+
+        confirmBtn.addEventListener('click', function() { close(true); });
+        cancelBtn.addEventListener('click', function() { close(false); });
+        matchInput.addEventListener('input', updateConfirmState);
+
+        return {
+            open: function(options) {
+                title.textContent = options.title;
+                message.textContent = options.message;
+                confirmBtn.textContent = options.confirmLabel;
+                cancelBtn.textContent = options.cancelLabel;
+                dialog.classList.toggle('is-danger', !!options.danger);
+                currentMatchValue = options.matchValue || '';
+                if (currentMatchValue) {
+                    matchWrap.classList.remove('hidden');
+                    matchName.textContent = currentMatchValue;
+                } else {
+                    matchWrap.classList.add('hidden');
+                    matchName.textContent = '';
+                }
+                matchInput.value = '';
+                updateConfirmState();
+                modal.classList.add('is-open');
+                window.setTimeout(function() {
+                    if (currentMatchValue) {
+                        matchInput.focus();
+                    } else {
+                        confirmBtn.focus();
+                    }
+                }, 0);
+                return new Promise(function(resolve) {
+                    resolver = resolve;
+                });
+            },
+            cancel: function() { close(false); },
+            isOpen: function() { return modal.classList.contains('is-open'); }
+        };
+    })();
+
+    document.body.addEventListener('htmx:confirm', function(e) {
+        if (!e.detail.question) return;
+        e.preventDefault();
+        var source = e.detail.elt || e.target;
+        var label = source && source.textContent ? source.textContent.replace(/\s+/g, ' ').trim() : '';
+        var danger = /(delete|verwijder|remove)/i.test((e.detail.question || '') + ' ' + label);
+        var matchValue = source && source.dataset ? (source.dataset.confirmMatch || '') : '';
+        confirmUi.open({
+            title: '{{ index .T "notify.confirm.title" }}',
+            message: e.detail.question,
+            confirmLabel: label || '{{ index .T "notify.confirm.confirm" }}',
+            cancelLabel: '{{ index .T "notify.confirm.cancel" }}',
+            danger: danger,
+            matchValue: matchValue
+        }).then(function(result) {
+            if (!result.confirmed) return;
+            if (matchValue) source.dataset.confirmedName = result.typedValue;
+            e.detail.issueRequest(true);
+        });
+    });
+
+    document.body.addEventListener('htmx:configRequest', function(e) {
+        var source = e.detail.elt;
+        if (!source || !source.dataset || !source.dataset.confirmedName) return;
+        e.detail.parameters.confirmed_name = source.dataset.confirmedName;
+    });
+
+    document.body.addEventListener('htmx:afterRequest', function(e) {
+        var source = e.detail.elt;
+        if (source && source.dataset) delete source.dataset.confirmedName;
+    });
+
+    document.addEventListener('keydown',function(e){if(e.key==='Escape') closeHelp();});
+
+    // ── Inline password form toggle ────────────────────────────────────────────
+    function togglePwForm(name) {
+        var el = document.getElementById('pw-form-' + name);
+        if (!el) return;
+        var opening = el.style.display === 'none';
+        el.style.display = opening ? '' : 'none';
+        if (opening) {
+            var first = el.querySelector('input[type=password]');
+            if (first) first.focus();
+        } else {
+            // Clear fields and result when closing
+            el.querySelectorAll('input[type=password]').forEach(function(i){ i.value=''; });
+            var res = document.getElementById('pw-result-' + name);
+            if (res) res.innerHTML = '';
+        }
+    }
+    function clearPwResult(name) {
+        // Called onsubmit to clear any previous result before the new response arrives
+        var res = document.getElementById('pw-result-' + name);
+        if (res) res.innerHTML = '';
+    }
+    // Auto-close password form and reset on success (HTMX after-request hook)
+    document.body.addEventListener('htmx:afterRequest', function(ev) {
+        var form = ev.detail.elt;
+        if (!form || form.getAttribute('hx-post') !== '/users/password') return;
+        if (ev.detail.xhr && ev.detail.xhr.status < 300) {
+            var nameInput = form.querySelector('input[name=username]');
+            if (!nameInput) return;
+            var name = nameInput.value;
+            form.querySelectorAll('input[type=password]').forEach(function(i){ i.value=''; });
+            // Auto-close after 2 seconds so user can see the success message
+            setTimeout(function(){ togglePwForm(name); }, 2000);
+        }
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && confirmUi.isOpen()) confirmUi.cancel();
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        bindNotificationToasts(document);
+    });
+
+    document.body.addEventListener('htmx:afterSwap', function() {
+        bindNotificationToasts(document);
+    });
+    </script>
+</body>
+</html>
