@@ -82,6 +82,7 @@ var translations = map[string]map[string]string{
 		// ---- Navigation ----
 		"nav.brand":     "Local VSP",
 		"nav.dashboard": "Dashboard",
+		"nav.explorer":  "Explorer",
 		"nav.logs":      "Logs",
 		"nav.settings":  "Settings",
 		"nav.help":      "Help",
@@ -513,6 +514,7 @@ var translations = map[string]map[string]string{
 		// ---- Navigation ----
 		"nav.brand":     "Local VSP",
 		"nav.dashboard": "Dashboard",
+		"nav.explorer":  "Bestandsbeheer",
 		"nav.logs":      "Logboek",
 		"nav.settings":  "Instellingen",
 		"nav.help":      "Hulp",

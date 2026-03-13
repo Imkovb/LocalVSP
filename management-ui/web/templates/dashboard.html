@@ -17,6 +17,7 @@
             </div>
             <div class="flex flex-wrap items-center gap-6 text-sm">
                 <a href="/" class="flex items-center gap-1 font-semibold text-emerald-400"><svg class="w-3.5 h-3.5" aria-hidden="true"><use href="#icon-home"/></svg>{{ index .T "nav.dashboard" }}</a>
+                <a href="/explorer" class="flex items-center gap-1 text-slate-400 hover:text-white"><svg class="w-3.5 h-3.5" aria-hidden="true"><use href="#icon-folder"/></svg>{{ index .T "nav.explorer" }}</a>
                 <a href="/settings" class="flex items-center gap-1 text-slate-400 hover:text-white"><svg class="w-3.5 h-3.5" aria-hidden="true"><use href="#icon-settings"/></svg>{{ index .T "nav.settings" }}</a>
                 <a href="/help" class="flex items-center gap-1 text-slate-400 hover:text-white"><svg class="w-3.5 h-3.5" aria-hidden="true"><use href="#icon-help"/></svg>{{ index .T "nav.help" }}</a>
                 <a href="http://{{.Host}}:3000" target="_blank" class="flex items-center gap-1 text-slate-400 hover:text-white" id="gitea-link"><svg class="w-3.5 h-3.5" aria-hidden="true"><use href="#icon-git"/></svg>{{ index .T "nav.gitea" }}</a>
@@ -463,6 +464,16 @@
                 self.renderTabs();
                 setTimeout(function() {
                     htmx.ajax('GET', '/api/local-docker', {target: '#local-docker-tbody', swap: 'innerHTML'});
+                    var anyRunning = false;
+                    for (var k in self.builds) {
+                        if (self.builds[k].status === 'running') {
+                            anyRunning = true;
+                            break;
+                        }
+                    }
+                    if (!anyRunning) {
+                        self.close();
+                    }
                 }, 2000);
             });
 

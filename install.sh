@@ -22,7 +22,7 @@ warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 fail() { echo -e "${RED}[✗] ERROR:${NC} $*" >&2; exit 1; }
 section() { echo -e "\n${BOLD}${CYAN}── $* ──${NC}"; }
 random_secret() {
-    tr -dc 'A-Za-z0-9' </dev/urandom | head -c 64
+    tr -dc 'A-Za-z0-9' </dev/urandom | head -c 64 || true
 }
 STAGE_DIR=""
 cleanup() {
@@ -88,6 +88,8 @@ update_existing_git_checkout() {
     fi
 
     info "Existing git checkout found at ${INSTALL_DIR}. Checking for a safe fast-forward update …"
+    local old_head
+    old_head=$(git -C "${INSTALL_DIR}" rev-parse HEAD 2>/dev/null || echo "none")
     git -C "${INSTALL_DIR}" fetch --depth=1 origin "${BRANCH}"
 
     if [ -n "$(git -C "${INSTALL_DIR}" status --porcelain)" ]; then
@@ -98,6 +100,11 @@ update_existing_git_checkout() {
 
     if git -C "${INSTALL_DIR}" merge-base --is-ancestor HEAD "origin/${BRANCH}"; then
         git -C "${INSTALL_DIR}" checkout -B "${BRANCH}" "origin/${BRANCH}"
+        local new_head
+        new_head=$(git -C "${INSTALL_DIR}" rev-parse HEAD 2>/dev/null || echo "none")
+        if [ "${old_head}" != "${new_head}" ]; then
+            export VSP_SOURCE_UPDATED="true"
+        fi
         log "Source updated to latest ${BRANCH}"
         return 0
     fi
@@ -105,6 +112,7 @@ update_existing_git_checkout() {
     warn "Current checkout cannot be fast-forwarded cleanly. Falling back to a staged replacement update."
     clone_repo_to_stage
     install_stage_into_install_dir
+    export VSP_SOURCE_UPDATED="true"
 }
 
 # ─── Banner ───────────────────────────────────────────────────────────────────
@@ -228,10 +236,12 @@ elif install_dir_has_files; then
     warn "Legacy install detected at ${INSTALL_DIR} without git metadata. Migrating it to a managed checkout."
     clone_repo_to_stage
     install_stage_into_install_dir
+    export VSP_SOURCE_UPDATED="true"
 else
     clone_repo_to_stage
     install_stage_into_install_dir
 fi
+
 
 # ─── Directory Structure ──────────────────────────────────────────────────────
 section "Preparing data directories"
@@ -273,23 +283,37 @@ echo ""
 echo -e "  ${BOLD}Cloudflare Tunnel Token${NC}"
 echo "  Get yours at: https://one.dash.cloudflare.com → Networks → Tunnels"
 echo -e "  ${YELLOW}Leave blank to skip Cloudflare (local access only)${NC}"
-echo -n "  Token [${CF_TOKEN_DEFAULT:0:8}...]: "
-read -r CF_TOKEN
-CF_TOKEN="${CF_TOKEN:-$CF_TOKEN_DEFAULT}"
+  
+  if [ "${VSP_SOURCE_UPDATED:-}" = "true" ] || [ -f "${ENV_FILE}" ]; then
+      echo -n "  Token [${CF_TOKEN_DEFAULT:0:8}...]: Keeping existing settings automatically during update"
+      echo ""
+      CF_TOKEN="${CF_TOKEN_DEFAULT}"
+  else
+      echo -n "  Token [${CF_TOKEN_DEFAULT:0:8}...]: "
+      read -r CF_TOKEN
+      CF_TOKEN="${CF_TOKEN:-$CF_TOKEN_DEFAULT}"
+  fi
 
-# Domain
-echo ""
-echo -e "  ${BOLD}Base Domain${NC}"
-echo "  Used for app/site subdomains (e.g. blog.yourdomain.com)"
-echo -n "  Domain [${DOMAIN_DEFAULT}]: "
-read -r VSP_DOMAIN
-VSP_DOMAIN="${VSP_DOMAIN:-$DOMAIN_DEFAULT}"
+  # Domain
+  echo ""
+  echo -e "  ${BOLD}Base Domain${NC}"
+  echo "  Used for app/site subdomains (e.g. blog.yourdomain.com)"
+  
+  if [ "${VSP_SOURCE_UPDATED:-}" = "true" ] || [ -f "${ENV_FILE}" ]; then
+      echo -n "  Domain [${DOMAIN_DEFAULT}]: Keeping existing settings automatically during update"
+      echo ""
+      VSP_DOMAIN="${DOMAIN_DEFAULT}"
+  else
+      echo -n "  Domain [${DOMAIN_DEFAULT}]: "
+      read -r VSP_DOMAIN
+      VSP_DOMAIN="${VSP_DOMAIN:-$DOMAIN_DEFAULT}"
+  fi
 
-# Write .env while preserving any unrelated keys already present
 TMP_ENV=$(mktemp)
 if [ -f "${ENV_FILE}" ]; then
     grep -Ev '^(CLOUDFLARE_TUNNEL_TOKEN|VSP_DOMAIN|GITEA_SECRET_KEY)=' "${ENV_FILE}" > "${TMP_ENV}" || true
 fi
+
 {
     cat "${TMP_ENV}" 2>/dev/null || true
     echo "CLOUDFLARE_TUNNEL_TOKEN=${CF_TOKEN}"
@@ -305,6 +329,13 @@ log ".env written to ${ENV_FILE}"
 section "Building and starting services"
 
 cd "${INSTALL_DIR}"
+
+if [ "${VSP_SOURCE_UPDATED:-}" = "true" ]; then
+    info "Update detected: rebuilding management-ui image without cache to apply latest changes …"
+    docker compose build --no-cache management-ui
+    docker compose stop management-ui 2>/dev/null || true
+    docker compose rm -f management-ui 2>/dev/null || true
+fi
 
 # Determine which compose profiles to activate
 PROFILES=""

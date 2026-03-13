@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="{{ .Lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ index .T "nav.explorer" }} &mdash; Local VSP</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/vsp-ui.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ext-modelist.js"></script>
+</head>
+<body class="vsp-shell bg-slate-950 text-slate-100 font-mono min-h-screen flex flex-col">
+{{template "icons" .}}
+    <nav class="border-b border-slate-800 bg-slate-950/85 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-slate-950/70 shrink-0">
+        <div class="mx-auto flex max-w-7xl items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+            <span class="flex items-center gap-2 text-xl font-bold text-emerald-400"><svg class="w-5 h-5" aria-hidden="true"><use href="#icon-server"/></svg>{{ index .T "nav.brand" }}</span>
+        </div>
+        <div class="flex items-center gap-6 text-sm flex-wrap">
+            <a href="/" class="flex items-center gap-1 text-slate-400 hover:text-white"><svg class="w-3.5 h-3.5" aria-hidden="true"><use href="#icon-home"/></svg>{{ index .T "nav.dashboard" }}</a>
+            <a href="/explorer" class="flex items-center gap-1 font-semibold text-emerald-400"><svg class="w-3.5 h-3.5" aria-hidden="true"><use href="#icon-folder"/></svg>{{ index .T "nav.explorer" }}</a>
+            <a href="/settings" class="flex items-center gap-1 text-slate-400 hover:text-white"><svg class="w-3.5 h-3.5" aria-hidden="true"><use href="#icon-settings"/></svg>{{ index .T "nav.settings" }}</a>
+            <a href="/help" class="flex items-center gap-1 text-slate-400 hover:text-white">
+                <svg class="w-3.5 h-3.5" aria-hidden="true"><use href="#icon-help"/></svg>
+                {{ index .T "nav.help" }}
+            </a>
+            <a href="http://{{.Host}}:3000" target="_blank" class="flex items-center gap-1 text-slate-400 hover:text-white" id="gitea-link"><svg class="w-3.5 h-3.5" aria-hidden="true"><use href="#icon-git"/></svg>{{ index .T "nav.gitea" }}</a>
+            <div class="flex items-center gap-1 border-l border-slate-800 pl-4">
+                {{ range .Langs }}
+                <a href="?lang={{ . }}"
+                   class="rounded px-2 py-0.5 text-xs font-bold transition-colors {{ if eq . $.Lang }}bg-emerald-700 text-white{{ else }}text-slate-400 hover:bg-slate-800 hover:text-white{{ end }}">
+                    {{ index $.LangFlag . }} {{ index $.LangName . }}
+                </a>
+                {{ end }}
+            </div>
+        </div>
+        </div>
+    </nav>
+
+    <main class="flex-1 mx-auto flex w-full max-w-screen-2xl p-6 gap-6 min-h-[0]">
+        <!-- Sidebar Explorer -->
+        <aside class="w-80 flex flex-col bg-slate-900 border border-slate-800 rounded shadow-sm shadow-slate-950">
+            <div class="p-3 border-b border-slate-800 flex justify-between items-center bg-slate-950/50 rounded-t">
+                <span class="font-bold flex items-center gap-2 text-sm text-slate-300">
+                    <svg class="h-4 w-4" aria-hidden="true"><use href="#icon-folder"/></svg> Explorer
+                </span>
+                <span class="text-xs text-slate-500" id="current-pathLabel">/</span>
+            </div>
+            
+            <div id="drop-zone" class="p-4 bg-slate-800/20 text-center text-xs text-emerald-500/70 border-b border-dashed border-emerald-500/20 hidden">
+                Drop files/folders here
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-2" id="file-list" ondragover="event.preventDefault(); document.getElementById('drop-zone').classList.remove('hidden')" ondragleave="document.getElementById('drop-zone').classList.add('hidden')" ondrop="handleDrop(event)">
+                <!-- populated by JS -->
+            </div>
+        </aside>
+
+        <!-- Main Editor Area -->
+        <section class="flex-1 flex flex-col bg-slate-900 border border-slate-800 rounded shadow-sm shadow-slate-950 relative min-w-[0]">
+            <div class="p-3 border-b border-slate-800 flex justify-between items-center bg-slate-950/50 rounded-t">
+                <span class="font-bold flex items-center gap-2 text-sm text-slate-300" id="editor-title">
+                    <svg class="h-4 w-4" aria-hidden="true"><use href="#icon-file"/></svg> <span id="editor-filename">No file selected</span>
+                </span>
+                <button id="btn-save" class="hidden items-center gap-1 rounded bg-emerald-600 px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-emerald-500" onclick="saveFile()">
+                    <svg class="h-3 w-3" aria-hidden="true"><use href="#icon-save"/></svg> Save (Ctrl+S)
+                </button>
+            </div>
+            <div id="editor-container" class="flex-1 w-full h-full relative" style="display: none;">
+                <div id="editor"></div>
+            </div>
+            <div id="editor-empty" class="flex-1 flex items-center justify-center text-slate-500 text-sm">
+                Select a file to edit
+            </div>
+            
+            <!-- Toast notification container specifically for the editor -->
+            <div id="editor-toast" class="absolute bottom-4 right-4 bg-emerald-900/90 border border-emerald-500 text-white px-4 py-2 rounded shadow-lg text-sm transition-opacity opacity-0 pointer-events-none z-50">
+                File saved
+            </div>
+        </section>
+    </main>
+
+    <script>
+        var currentPath = ".";
+        var currentFilePath = null;
+        var editor = null;
+        var modelist = ace.require("ace/ext/modelist");
+
+        function initEditor() {
+            editor = ace.edit("editor");
+            editor.setTheme("ace/theme/tomorrow_night_eighties");
+            editor.setOptions({
+                fontSize: "14px",
+                showPrintMargin: false,
+                displayIndentGuides: false,
+                fontFamily: "monospace"
+            });
+            editor.commands.addCommand({
+                name: "save",
+                bindKey: {win: "Ctrl-S", mac: "Cmd-S"},
+                exec: function() {
+                    saveFile();
+                }
+            });
+        }
+
+        async function loadDir(path) {
+            currentPath = path;
+            document.getElementById("current-pathLabel").innerText = currentPath === "." ? "/" : currentPath;
+            try {
+                const res = await fetch("/api/explore/list?path=" + encodeURIComponent(path));
+                if (!res.ok) throw new Error("Failed to load list");
+                const list = await res.json();
+                renderList(list);
+            } catch (err) {
+                console.error(err);
+                alert("Error loading directory");
+            }
+        }
+
+        function renderList(files) {
+            const container = document.getElementById("file-list");
+            container.innerHTML = "";
+            if (!files || files.length === 0) {
+                container.innerHTML = "<div class=\"text-xs text-slate-500 p-2\">Empty directory</div>";
+                return;
+            }
+            files.sort((a,b) => {
+                if (a.isDir && !b.isDir) return -1;
+                if (!a.isDir && b.isDir) return 1;
+                return a.name.localeCompare(b.name);
+            });
+
+            files.forEach(f => {
+                const el = document.createElement("div");
+                el.className = "flex items-center gap-2 p-1.5 rounded cursor-pointer text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors truncate";
+                el.innerHTML = `<svg class="w-4 h-4 shrink-0 text-slate-400" aria-hidden="true"><use href="#icon-${f.isDir ? 'folder' : 'file'}"/></svg> <span>${f.name}</span>`;
+                el.onclick = () => {
+                    if (f.isDir) {
+                        loadDir(f.path);
+                    } else {
+                        loadFile(f.path, f.name);
+                    }
+                };
+                container.appendChild(el);
+            });
+        }
+
+        async function loadFile(path, name) {
+            try {
+                const res = await fetch("/api/explore/read?path=" + encodeURIComponent(path));
+                if (!res.ok) throw new Error("Failed to read file");
+                const text = await res.text();
+                
+                document.getElementById("editor-empty").style.display = "none";
+                document.getElementById("editor-container").style.display = "block";
+                document.getElementById("btn-save").style.display = "inline-flex";
+                document.getElementById("editor-filename").innerText = path;
+                currentFilePath = path;
+                
+                if (!editor) initEditor();
+                
+                editor.setValue(text, -1);
+                
+                // set mode
+                var mode = modelist.getModeForPath(path).mode;
+                editor.session.setMode(mode);
+                
+                // resize to fit
+                editor.resize();
+            } catch (err) {
+                console.error(err);
+                alert("Error reading file");
+            }
+        }
+
+        async function saveFile() {
+            if (!currentFilePath) return;
+            document.getElementById("btn-save").innerHTML = `<svg class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Saving...`;
+            try {
+                const val = editor.getValue();
+                const res = await fetch("/api/explore/save?path=" + encodeURIComponent(currentFilePath), {
+                    method: "POST",
+                    body: val
+                });
+                if (!res.ok) throw new Error("Failed to save file");
+                showToast("File saved successfully");
+            } catch(e) {
+                console.error(e);
+                alert("Error saving file");
+            } finally {
+                document.getElementById("btn-save").innerHTML = `<svg class="h-3 w-3" aria-hidden="true"><use href="#icon-save"/></svg> Save (Ctrl+S)`;
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById("editor-toast");
+            toast.innerText = msg;
+            toast.style.opacity = "1";
+            setTimeout(() => {
+                toast.style.opacity = "0";
+            }, 3000);
+        }
+
+        // Drag and drop upload folder support
+        async function handleDrop(e) {
+            e.preventDefault();
+            document.getElementById("drop-zone").classList.add("hidden");
+            
+            if (!e.dataTransfer.items) return;
+
+            // Gather all files
+            let filesToUpload = [];
+            
+            // recursive traverse
+            async function traverseFileTree(item, path) {
+                path = path || "";
+                if (item.isFile) {
+                    const file = await new Promise(r => item.file(r));
+                    filesToUpload.push({file, relPath: path + file.name});
+                } else if (item.isDirectory) {
+                    const dirReader = item.createReader();
+                    const entries = await new Promise(r => dirReader.readEntries(r));
+                    for (let i = 0; i < entries.length; i++) {
+                        await traverseFileTree(entries[i], path + item.name + "/");
+                    }
+                }
+            }
+
+            for (let i = 0; i < e.dataTransfer.items.length; i++) {
+                let item = e.dataTransfer.items[i].webkitGetAsEntry();
+                if (item) await traverseFileTree(item);
+            }
+
+            if (filesToUpload.length === 0) return;
+
+            const fd = new FormData();
+            filesToUpload.forEach(obj => {
+                fd.append("file", obj.file);
+                fd.append("filepath", obj.relPath);
+            });
+            fd.append("path", currentPath);
+
+            const prevHtml = document.getElementById("drop-zone").innerHTML;
+            document.getElementById("drop-zone").classList.remove("hidden");
+            document.getElementById("drop-zone").innerHTML = `<svg class="h-3 w-3 animate-spin inline mr-1" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Uploading...`;
+
+            try {
+                const res = await fetch("/api/explore/upload", {
+                    method: "POST",
+                    body: fd
+                });
+                if (!res.ok) throw new Error("Upload failed");
+                showToast("Upload complete");
+                loadDir(currentPath);
+            } catch (err) {
+                console.error(err);
+                alert("Upload failed");
+            } finally {
+                document.getElementById("drop-zone").classList.add("hidden");
+                document.getElementById("drop-zone").innerHTML = prevHtml;
+            }
+        }
+
+        // initial load
+        loadDir(".");
+    </script>
+    <style>
+        #editor {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+        }
+    </style>
+</body>
+</html>

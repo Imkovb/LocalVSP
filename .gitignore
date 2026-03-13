@@ -25,3 +25,4 @@ management-ui/*.exe
 *.ps1
 
 .github/
+start.bat

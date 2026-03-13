@@ -8,6 +8,7 @@ func NewMux() *http.ServeMux {
 	mux.HandleFunc("/", DashboardHandler)
 	mux.HandleFunc("/logs", LogsPageHandler)
 	mux.HandleFunc("/settings", SettingsPageHandler)
+	mux.HandleFunc("/explorer", ExplorerPageHandler)
 	mux.HandleFunc("/help", HelpHandler)
 
 	mux.HandleFunc("/infra/action", InfraActionHandler)
@@ -18,6 +19,11 @@ func NewMux() *http.ServeMux {
 	mux.HandleFunc("/api/local-docker", LocalDockerProjectsHandler)
 	mux.HandleFunc("/api/builds", BuildsAPIHandler)
 	mux.HandleFunc("/api/build-log", BuildLogViewHandler)
+
+	mux.HandleFunc("/api/explore/list", ExplorerAPIList)
+	mux.HandleFunc("/api/explore/read", ExplorerAPIRead)
+	mux.HandleFunc("/api/explore/save", ExplorerAPISave)
+	mux.HandleFunc("/api/explore/upload", ExplorerAPIUpload)
 
 	mux.HandleFunc("/local/docker/build-stream", LocalDockerBuildStreamHandler)
 	mux.HandleFunc("/local/html/action", LocalHtmlActionHandler)
